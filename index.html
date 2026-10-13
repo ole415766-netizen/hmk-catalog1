@@ -7,7 +7,7 @@
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       background:#f5f2ec;color:#2c2c2c;line-height:1.5;padding:12px 12px 110px}
+       background:#f5f2ec;color:#2c2c2c;line-height:1.5;padding:12px 12px 130px}
   h1{font-size:20px;margin-bottom:2px}
   .sub{color:#8a8175;font-size:12px;margin-bottom:12px}
   .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
@@ -20,7 +20,6 @@
   .filters input{flex:2}.filters select{flex:1;min-width:0}
   button{cursor:pointer;border:none;background:#8b5a2b;color:#fff;font-weight:600}
   button.sec{background:#e8e2d8;color:#4a3a2a}
-  button.ghost{background:#fff;color:#8b5a2b;border:1px solid #8b5a2b}
   .card{background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;
         box-shadow:0 1px 3px rgba(0,0,0,.06)}
   .card-head{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start}
@@ -44,10 +43,11 @@
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .preview{width:120px;border-radius:10px;margin-top:8px;display:block}
   .bottom{position:fixed;left:0;right:0;bottom:12px;padding:0 12px;
-          display:flex;gap:8px;z-index:50}
-  .bottom button{box-shadow:0 4px 14px rgba(0,0,0,.15);padding:14px}
-  .bottom button.small{flex:0 0 auto;padding:14px 16px}
-  .toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);
+          display:flex;gap:6px;z-index:50;flex-wrap:wrap}
+  .bottom button{box-shadow:0 4px 14px rgba(0,0,0,.15);padding:12px 8px;font-size:13px}
+  .bottom .add{flex:1 1 100%}
+  .bottom .half{flex:1 1 calc(50% - 3px)}
+  .toast{position:fixed;bottom:130px;left:50%;transform:translateX(-50%);
     background:#2c2c2c;color:#fff;padding:10px 18px;border-radius:10px;
     font-size:14px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;
     max-width:90%;text-align:center}
@@ -74,9 +74,9 @@
 <div id="list"></div>
 
 <div class="bottom">
-  <button onclick="newItem()" style="flex:1">+ Добавить конверт</button>
-  <button class="sec small" onclick="exportJSON()" title="Экспорт">💾</button>
-  <button class="sec small" onclick="document.getElementById('imp').click()" title="Импорт">📂</button>
+  <button class="add" onclick="newItem()">+ Добавить конверт</button>
+  <button class="sec half" onclick="exportJSON()">💾 Экспорт</button>
+  <button class="sec half" onclick="document.getElementById('imp').click()">📂 Импорт</button>
 </div>
 <input id="imp" type="file" accept=".json,application/json" hidden onchange="importJSON(event)">
 
