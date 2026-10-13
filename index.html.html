@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Каталог ХМК</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:#f5f2ec;color:#2c2c2c;line-height:1.5;padding:12px 12px 110px}
+  h1{font-size:20px;margin-bottom:2px}
+  .sub{color:#8a8175;font-size:12px;margin-bottom:12px}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .stat{background:#fff;border-radius:12px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .stat b{display:block;font-size:18px;color:#8b5a2b}
+  .stat span{font-size:11px;color:#8a8175}
+  .filters{display:flex;gap:8px;margin-bottom:12px}
+  input,select,textarea,button{font:inherit;font-size:15px;padding:11px 14px;
+    border:1px solid #e2dbd0;border-radius:10px;background:#fff;color:#2c2c2c;width:100%}
+  .filters input{flex:2}.filters select{flex:1;min-width:0}
+  button{cursor:pointer;border:none;background:#8b5a2b;color:#fff;font-weight:600}
+  button.sec{background:#e8e2d8;color:#4a3a2a}
+  button.ghost{background:#fff;color:#8b5a2b;border:1px solid #8b5a2b}
+  .card{background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;
+        box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .card-head{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start}
+  .card img,.card .noimg{width:88px;height:88px;object-fit:cover;border-radius:10px;
+        background:#e8e2d8;display:flex;align-items:center;justify-content:center;
+        color:#8a8175;font-size:11px;text-align:center}
+  .card h3{font-size:15px;margin-bottom:4px;line-height:1.3}
+  .tags{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+  .tag{font-size:10px;padding:2px 7px;border-radius:6px;background:#e8e2d8;
+       color:#5a4a3a;font-weight:600}
+  .tag.theme{background:#dbe9d8;color:#2e5d2c}
+  .tag.rare{background:#f0d9c9;color:#8b4a1f}
+  .price{font-size:15px;font-weight:700;color:#2e7d32;margin-top:4px}
+  .comment{font-size:12px;color:#8a8175;margin-top:2px}
+  .actions{display:flex;gap:8px;margin-top:10px}
+  .actions button{flex:1;padding:9px;font-size:13px}
+  .edit-form{margin-top:12px;border-top:1px dashed #d8d2c8;padding-top:12px;display:none}
+  .edit-form.on{display:block}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:12px;color:#8a8175;margin-bottom:4px;font-weight:600}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .preview{width:120px;border-radius:10px;margin-top:8px;display:block}
+  .bottom{position:fixed;left:0;right:0;bottom:12px;padding:0 12px;
+          display:flex;gap:8px;z-index:50}
+  .bottom button{box-shadow:0 4px 14px rgba(0,0,0,.15);padding:14px}
+  .bottom button.small{flex:0 0 auto;padding:14px 16px}
+  .toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);
+    background:#2c2c2c;color:#fff;padding:10px 18px;border-radius:10px;
+    font-size:14px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;
+    max-width:90%;text-align:center}
+  .toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<h1>📬 Каталог ХМК</h1>
+<div class="sub">Личная коллекция • сохраняется на устройстве</div>
+
+<div class="stats">
+  <div class="stat"><b id="st-count">0</b><span>конвертов</span></div>
+  <div class="stat"><b id="st-avg">0 ₽</b><span>средняя оценка</span></div>
+  <div class="stat"><b id="st-min">0 ₽</b><span>минимум всего</span></div>
+  <div class="stat"><b id="st-max">0 ₽</b><span>максимум всего</span></div>
+</div>
+
+<div class="filters">
+  <input id="f-search" placeholder="🔍 Поиск..." oninput="render()">
+  <select id="f-theme" onchange="render()"><option value="">Все</option></select>
+</div>
+
+<div id="list"></div>
+
+<div class="bottom">
+  <button onclick="newItem()" style="flex:1">+ Добавить конверт</button>
+  <button class="sec small" onclick="exportJSON()" title="Экспорт">💾</button>
+  <button class="sec small" onclick="document.getElementById('imp').click()" title="Импорт">📂</button>
+</div>
+<input id="imp" type="file" accept=".json,application/json" hidden onchange="importJSON(event)">
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LS_KEY='hmk_catalog_v3';
+let items=[];let currentPhoto=null;
+
+const SEED=[
+ {name:"Авиация (самолёт над пейзажем)",year:"1961",denom:"7 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:400,comment:"Массовый тираж, без гашения."},
+ {name:"ВДНХ СССР (вертолёт над выставкой)",year:"1960-е",denom:"4 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:100,pmax:300,comment:"Интересный сюжет."},
+ {name:"Лоси. Охраняйте полезных животных!",year:"1960",denom:"40+5 коп.",theme:"Фауна",cond:"Чистый",rare:"Обычный",pmin:100,pmax:250,comment:"Лапкин 60-224(1324)."},
+ {name:"Марал. Охраняйте полезных животных!",year:"1960",denom:"40+5 коп.",theme:"Фауна",cond:"Чистый",rare:"Обычный",pmin:80,pmax:200,comment:"Клапан не заклеен."},
+ {name:"Барсуки. Охраняйте полезных животных!",year:"1960",denom:"1 коп.",theme:"Фауна",cond:"Чистый",rare:"Необычный",pmin:150,pmax:300,comment:"Нетиповой номинал марки."},
+ {name:"Косули. Охраняйте полезных животных!",year:"1960",denom:"40+5 коп.",theme:"Фауна",cond:"Чистый",rare:"Обычный",pmin:100,pmax:250,comment:"Лапкин 60-239(1336)."},
+ {name:"И. А. Крылов (1769–1844)",year:"1960",denom:"40 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:300,comment:"Портретная серия."},
+ {name:"И. С. Тургенев",year:"1960",denom:"40 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:300,comment:"Портретная серия."},
+ {name:"Ярослав Галан (скульптура Я. Чайки)",year:"1960-е",denom:"без марки",theme:"Портреты",cond:"Чистый",rare:"Необычный",pmin:200,pmax:450,comment:"Немаркированный ХМК."},
+ {name:"А. П. Чехов",year:"1960",denom:"40 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный (ранний)",pmin:200,pmax:400,comment:"100 лет со дня рождения."},
+ {name:"50 лет хору имени Пятницкого",year:"1961",denom:"4 коп.",theme:"Искусство",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Юбилейный выпуск."},
+ {name:"Ференц Лист (1811–1886)",year:"1961",denom:"4 коп.",theme:"Искусство",cond:"Чистый",rare:"Обычный (ранний)",pmin:200,pmax:400,comment:"150 лет со дня рождения."},
+ {name:"М. В. Ломоносов (1711–1765)",year:"1961",denom:"4 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный (ранний)",pmin:200,pmax:400,comment:"250 лет со дня рождения."},
+ {name:"С. М. Киров (1886–1934)",year:"1961",denom:"4 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:350,comment:"Портретная серия."}
+];
+
+function load(){
+  try{
+    const r=localStorage.getItem(LS_KEY);
+    if(r){items=JSON.parse(r);}
+    else{items=SEED.map(x=>({...x,photo:null}));}
+    renumber();
+  }catch(e){items=SEED.map(x=>({...x,photo:null}));}
+}
+
+function renumber(){items.forEach((it,i)=>{it.id=i+1;});}
+function save(){localStorage.setItem(LS_KEY,JSON.stringify(items));}
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('on');
+  setTimeout(()=>t.classList.remove('on'),2000);
+}
+
+function render(){
+  const q=(document.getElementById('f-search').value||'').toLowerCase();
+  const ft=document.getElementById('f-theme').value;
+  const list=document.getElementById('list');list.innerHTML='';
+
+  const themes=[...new Set(items.map(i=>i.theme).filter(Boolean))].sort();
+  const sel=document.getElementById('f-theme');const cur=sel.value;
+  sel.innerHTML='<option value="">Все</option>'+themes.map(t=>`<option ${t===cur?'selected':''}>${t}</option>`).join('');
+
+  const filtered=items.filter(it=>(!q||it.name.toLowerCase().includes(q))&&(!ft||it.theme===ft));
+
+  if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:40px;color:#8a8175">Ничего не найдено</div>';}
+
+  let sMin=0,sMax=0;
+  filtered.forEach(it=>{
+    sMin+=+it.pmin||0;sMax+=+it.pmax||0;
+    const c=document.createElement('div');c.className='card';
+    const ph=it.photo?`<img src="${it.photo}">`:`<div class="noimg">нет<br>фото</div>`;
+    c.innerHTML=`
+      <div class="card-head">
+        ${ph}
+        <div>
+          <h3>№${it.id}. ${esc(it.name)}</h3>
+          <div class="tags">
+            ${it.year?`<span class="tag">${esc(it.year)}</span>`:''}
+            ${it.denom?`<span class="tag">${esc(it.denom)}</span>`:''}
+            ${it.theme?`<span class="tag theme">${esc(it.theme)}</span>`:''}
+            ${it.rare?`<span class="tag rare">${esc(it.rare)}</span>`:''}
+            ${it.cond?`<span class="tag">${esc(it.cond)}</span>`:''}
+          </div>
+          <div class="price">${it.pmin||0}–${it.pmax||0} ₽</div>
+          ${it.comment?`<div class="comment">${esc(it.comment)}</div>`:''}
+        </div>
+      </div>
+      <div class="actions">
+        <button class="sec" onclick="toggleEdit(${it.id})">✏ Изменить</button>
+        <button class="sec" onclick="delItem(${it.id})">🗑 Удалить</button>
+      </div>
+      <div class="edit-form" id="form-${it.id}"></div>
+    `;
+    list.appendChild(c);
+  });
+
+  document.getElementById('st-count').textContent=filtered.length;
+  document.getElementById('st-min').textContent=sMin.toLocaleString('ru-RU')+' ₽';
+  document.getElementById('st-max').textContent=sMax.toLocaleString('ru-RU')+' ₽';
+  document.getElementById('st-avg').textContent=Math.round((sMin+sMax)/2).toLocaleString('ru-RU')+' ₽';
+}
+
+function toggleEdit(id){
+  const form=document.getElementById('form-'+id);
+  if(!form)return;
+  if(form.classList.contains('on')){form.classList.remove('on');form.innerHTML='';return;}
+  const it=items.find(x=>x.id===id);
+  if(!it)return;
+  currentPhoto=it.photo||null;
+  form.innerHTML=`
+    <div class="field"><label>Фото</label>
+      <input type="file" accept="image/*" onchange="onPhoto(event,${id})">
+      <img class="preview" id="prev-${id}" ${currentPhoto?`src="${currentPhoto}"`:'style="display:none"'}>
+    </div>
+    <div class="field"><label>Название *</label><input id="f-name-${id}" value="${esc(it.name)}"></div>
+    <div class="row2">
+      <div class="field"><label>Год</label><input id="f-year-${id}" value="${esc(it.year)}"></div>
+      <div class="field"><label>Номинал</label><input id="f-denom-${id}" value="${esc(it.denom)}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Тема</label><input id="f-theme-${id}" value="${esc(it.theme)}"></div>
+      <div class="field"><label>Каталог №</label><input id="f-cat-${id}" value="${esc(it.cat||'')}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Состояние</label><input id="f-cond-${id}" value="${esc(it.cond||'Чистый')}"></div>
+      <div class="field"><label>Редкость</label><input id="f-rare-${id}" value="${esc(it.rare||'Обычный')}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Цена от, ₽</label><input id="f-pmin-${id}" type="number" value="${it.pmin||0}"></div>
+      <div class="field"><label>Цена до, ₽</label><input id="f-pmax-${id}" type="number" value="${it.pmax||0}"></div>
+    </div>
+    <div class="field"><label>Комментарий</label><textarea id="f-comment-${id}">${esc(it.comment||'')}</textarea></div>
+    <div class="actions">
+      <button class="sec" onclick="toggleEdit(${id})">Отмена</button>
+      <button onclick="saveItem(${id})">Сохранить</button>
+    </div>`;
+  form.classList.add('on');
+  setTimeout(()=>form.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+function onPhoto(e,id){
+  const f=e.target.files[0];if(!f){toast('Файл не выбран');return;}
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=600;
+      const s=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=img.width*s;c.height=img.height*s;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      currentPhoto=c.toDataURL('image/jpeg',0.75);
+      const p=document.getElementById('prev-'+id);
+      if(p){p.src=currentPhoto;p.style.display='block';}
+      toast('Фото загружено ✅');
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+function saveItem(id){
+  const it=items.find(x=>x.id===id);if(!it)return;
+  const name=document.getElementById('f-name-'+id).value.trim();
+  if(!name){toast('Введите название');return;}
+  it.name=name;
+  it.year=document.getElementById('f-year-'+id).value;
+  it.denom=document.getElementById('f-denom-'+id).value;
+  it.theme=document.getElementById('f-theme-'+id).value;
+  it.cat=document.getElementById('f-cat-'+id).value;
+  it.cond=document.getElementById('f-cond-'+id).value;
+  it.rare=document.getElementById('f-rare-'+id).value;
+  it.pmin=+document.getElementById('f-pmin-'+id).value||0;
+  it.pmax=+document.getElementById('f-pmax-'+id).value||0;
+  it.comment=document.getElementById('f-comment-'+id).value;
+  if(currentPhoto)it.photo=currentPhoto;
+  save();render();toast('Сохранено ✅');
+}
+
+function delItem(id){
+  if(!confirm('Удалить №'+id+'? Нумерация остальных сдвинется.'))return;
+  items=items.filter(x=>x.id!==id);
+  renumber();
+  save();render();toast('Удалено, нумерация обновлена');
+}
+
+function newItem(){
+  items.push({id:0,name:"Новый конверт",year:"",denom:"",theme:"",cond:"Чистый",rare:"Обычный",pmin:0,pmax:0,comment:"",photo:null});
+  renumber();
+  const nid=items[items.length-1].id;
+  save();render();
+  setTimeout(()=>toggleEdit(nid),100);
+}
+
+/* ---- ЭКСПОРТ / ИМПОРТ ---- */
+function exportJSON(){
+  const data={version:1,exportedAt:new Date().toISOString(),count:items.length,items:items};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const d=new Date().toISOString().slice(0,10);
+  a.href=url;a.download='hmk-catalog-'+d+'.json';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast('💾 Экспортировано: '+items.length+' конвертов');
+}
+
+function importJSON(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      const incoming=Array.isArray(data)?data:(data.items||[]);
+      if(!Array.isArray(incoming)||!incoming.length){toast('Файл пустой или неверный');return;}
+      if(!confirm('Импортировать '+incoming.length+' конвертов? Текущая коллекция будет заменена.'))return;
+      items=incoming.map(it=>({
+        name:it.name||'Без названия',year:it.year||'',denom:it.denom||'',
+        theme:it.theme||'',cond:it.cond||'Чистый',rare:it.rare||'Обычный',
+        pmin:+it.pmin||0,pmax:+it.pmax||0,comment:it.comment||'',
+        cat:it.cat||'',photo:it.photo||null
+      }));
+      renumber();save();render();
+      toast('📂 Импортировано: '+items.length+' конвертов');
+    }catch(err){toast('Ошибка чтения файла');}
+  };
+  r.readAsText(f);
+  e.target.value='';
+}
+
+load();render();
+</script>
+</body>
+</html>
