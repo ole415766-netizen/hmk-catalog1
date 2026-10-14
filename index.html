@@ -21,7 +21,6 @@
   button{cursor:pointer;border:none;background:#8b5a2b;color:#fff;font-weight:600}
   button.sec{background:#e8e2d8;color:#4a3a2a}
 
-  /* ЗАГОЛОВОК РАЗДЕЛА ПО ГОДУ */
   .section-header{display:flex;justify-content:space-between;align-items:baseline;
     padding:14px 6px 8px;margin-top:6px;border-bottom:2px solid #8b5a2b;
     position:sticky;top:0;background:#f5f2ec;z-index:10}
@@ -97,14 +96,14 @@ let items=[];let currentPhoto=null;
 
 const SEED=[
  {name:"Авиация (самолёт над пейзажем)",year:"1961",denom:"7 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:400,comment:"Массовый тираж, без гашения."},
- {name:"ВДНХ СССР (вертолёт над выставкой)",year:"1960-е",denom:"4 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:100,pmax:300,comment:"Интересный сюжет."},
+ {name:"ВДНХ СССР (вертолёт над выставкой)",year:"1960",denom:"4 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:100,pmax:300,comment:"Интересный сюжет."},
  {name:"Лоси. Охраняйте полезных животных!",year:"1960",denom:"40+5 коп.",theme:"Фауна",cond:"Чистый",rare:"Обычный",pmin:100,pmax:250,comment:"Лапкин 60-224(1324)."},
  {name:"Марал. Охраняйте полезных животных!",year:"1960",denom:"40+5 коп.",theme:"Фауна",cond:"Чистый",rare:"Обычный",pmin:80,pmax:200,comment:"Клапан не заклеен."},
  {name:"Барсуки. Охраняйте полезных животных!",year:"1960",denom:"1 коп.",theme:"Фауна",cond:"Чистый",rare:"Необычный",pmin:150,pmax:300,comment:"Нетиповой номинал марки."},
  {name:"Косули. Охраняйте полезных животных!",year:"1960",denom:"40+5 коп.",theme:"Фауна",cond:"Чистый",rare:"Обычный",pmin:100,pmax:250,comment:"Лапкин 60-239(1336)."},
  {name:"И. А. Крылов (1769–1844)",year:"1960",denom:"40 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:300,comment:"Портретная серия."},
  {name:"И. С. Тургенев",year:"1960",denom:"40 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:300,comment:"Портретная серия."},
- {name:"Ярослав Галан (скульптура Я. Чайки)",year:"1960-е",denom:"без марки",theme:"Портреты",cond:"Чистый",rare:"Необычный",pmin:200,pmax:450,comment:"Немаркированный ХМК."},
+ {name:"Ярослав Галан (скульптура Я. Чайки)",year:"1960",denom:"без марки",theme:"Портреты",cond:"Чистый",rare:"Необычный",pmin:200,pmax:450,comment:"Немаркированный ХМК."},
  {name:"А. П. Чехов",year:"1960",denom:"40 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный (ранний)",pmin:200,pmax:400,comment:"100 лет со дня рождения."},
  {name:"50 лет хору имени Пятницкого",year:"1961",denom:"4 коп.",theme:"Искусство",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Юбилейный выпуск."},
  {name:"Ференц Лист (1811–1886)",year:"1961",denom:"4 коп.",theme:"Искусство",cond:"Чистый",rare:"Обычный (ранний)",pmin:200,pmax:400,comment:"150 лет со дня рождения."},
@@ -117,6 +116,10 @@ function load(){
     const r=localStorage.getItem(LS_KEY);
     if(r){items=JSON.parse(r);}
     else{items=SEED.map(x=>({...x,photo:null}));}
+    // на всякий случай нормализуем годы у уже сохранённых данных
+    items.forEach(it=>{
+      if(it.year){it.year=String(it.year).replace(/-е$/,'').replace(/-х$/,'');}
+    });
     renumber();
   }catch(e){items=SEED.map(x=>({...x,photo:null}));}
 }
@@ -144,19 +147,20 @@ function render(){
   let sMin=0,sMax=0;
   filtered.forEach(it=>{sMin+=+it.pmin||0;sMax+=+it.pmax||0;});
 
-  // 👇 группировка по годам
+  // группировка по годам (нормализуем «1960-е» → «1960»)
   const groups={};
   filtered.forEach(it=>{
-    const y=(it.year||'').trim()||'Без года';
+    let y=(it.year||'').trim()||'Без года';
+    y=y.replace(/-е$/,'').replace(/-х$/,'');
     if(!groups[y])groups[y]=[];
     groups[y].push(it);
   });
 
-  // сортировка годов: по убыванию, «Без года» в конце
+  // сортировка: от старых к новым; «Без года» в конце
   const years=Object.keys(groups).sort((a,b)=>{
     if(a==='Без года')return 1;
     if(b==='Без года')return -1;
-    return b.localeCompare(a,undefined,{numeric:true});
+    return a.localeCompare(b,undefined,{numeric:true});
   });
 
   if(!filtered.length){
@@ -169,7 +173,6 @@ function render(){
     const gMin=group.reduce((s,it)=>s+(+it.pmin||0),0);
     const gMax=group.reduce((s,it)=>s+(+it.pmax||0),0);
 
-    // заголовок раздела
     const header=document.createElement('div');
     header.className='section-header'+(firstSection?' section-first':'');
     header.innerHTML=`
@@ -179,7 +182,6 @@ function render(){
     list.appendChild(header);
     firstSection=false;
 
-    // карточки года
     group.forEach(it=>{
       const c=document.createElement('div');c.className='card';
       const ph=it.photo?`<img src="${it.photo}">`:`<div class="noimg">нет<br>фото</div>`;
@@ -281,7 +283,9 @@ function saveItem(id){
   const name=document.getElementById('f-name-'+id).value.trim();
   if(!name){toast('Введите название');return;}
   it.name=name;
-  it.year=document.getElementById('f-year-'+id).value;
+  let yr=document.getElementById('f-year-'+id).value.trim();
+  yr=yr.replace(/-е$/,'').replace(/-х$/,'');
+  it.year=yr;
   it.denom=document.getElementById('f-denom-'+id).value;
   it.theme=document.getElementById('f-theme-'+id).value;
   it.cat=document.getElementById('f-cat-'+id).value;
@@ -331,12 +335,16 @@ function importJSON(e){
       const incoming=Array.isArray(data)?data:(data.items||[]);
       if(!Array.isArray(incoming)||!incoming.length){toast('Файл пустой или неверный');return;}
       if(!confirm('Импортировать '+incoming.length+' конвертов? Текущая коллекция будет заменена.'))return;
-      items=incoming.map(it=>({
-        name:it.name||'Без названия',year:it.year||'',denom:it.denom||'',
-        theme:it.theme||'',cond:it.cond||'Чистый',rare:it.rare||'Обычный',
-        pmin:+it.pmin||0,pmax:+it.pmax||0,comment:it.comment||'',
-        cat:it.cat||'',photo:it.photo||null
-      }));
+      items=incoming.map(it=>{
+        let yr=String(it.year||'').trim();
+        yr=yr.replace(/-е$/,'').replace(/-х$/,'');
+        return{
+          name:it.name||'Без названия',year:yr,denom:it.denom||'',
+          theme:it.theme||'',cond:it.cond||'Чистый',rare:it.rare||'Обычный',
+          pmin:+it.pmin||0,pmax:+it.pmax||0,comment:it.comment||'',
+          cat:it.cat||'',photo:it.photo||null
+        };
+      });
       renumber();save();render();
       toast('📂 Импортировано: '+items.length+' конвертов');
     }catch(err){toast('Ошибка чтения файла');}
