@@ -20,6 +20,15 @@
   .filters input{flex:2}.filters select{flex:1;min-width:0}
   button{cursor:pointer;border:none;background:#8b5a2b;color:#fff;font-weight:600}
   button.sec{background:#e8e2d8;color:#4a3a2a}
+
+  /* ЗАГОЛОВОК РАЗДЕЛА ПО ГОДУ */
+  .section-header{display:flex;justify-content:space-between;align-items:baseline;
+    padding:14px 6px 8px;margin-top:6px;border-bottom:2px solid #8b5a2b;
+    position:sticky;top:0;background:#f5f2ec;z-index:10}
+  .section-header .year{font-size:19px;font-weight:800;color:#8b5a2b;letter-spacing:.5px}
+  .section-header .year-info{font-size:12px;color:#8a8175;font-weight:600}
+  .section-first{margin-top:0}
+
   .card{background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;
         box-shadow:0 1px 3px rgba(0,0,0,.06)}
   .card-head{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start}
@@ -132,36 +141,72 @@ function render(){
 
   const filtered=items.filter(it=>(!q||it.name.toLowerCase().includes(q))&&(!ft||it.theme===ft));
 
-  if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:40px;color:#8a8175">Ничего не найдено</div>';}
-
   let sMin=0,sMax=0;
+  filtered.forEach(it=>{sMin+=+it.pmin||0;sMax+=+it.pmax||0;});
+
+  // 👇 группировка по годам
+  const groups={};
   filtered.forEach(it=>{
-    sMin+=+it.pmin||0;sMax+=+it.pmax||0;
-    const c=document.createElement('div');c.className='card';
-    const ph=it.photo?`<img src="${it.photo}">`:`<div class="noimg">нет<br>фото</div>`;
-    c.innerHTML=`
-      <div class="card-head">
-        ${ph}
-        <div>
-          <h3>№${it.id}. ${esc(it.name)}</h3>
-          <div class="tags">
-            ${it.year?`<span class="tag">${esc(it.year)}</span>`:''}
-            ${it.denom?`<span class="tag">${esc(it.denom)}</span>`:''}
-            ${it.theme?`<span class="tag theme">${esc(it.theme)}</span>`:''}
-            ${it.rare?`<span class="tag rare">${esc(it.rare)}</span>`:''}
-            ${it.cond?`<span class="tag">${esc(it.cond)}</span>`:''}
-          </div>
-          <div class="price">${it.pmin||0}–${it.pmax||0} ₽</div>
-          ${it.comment?`<div class="comment">${esc(it.comment)}</div>`:''}
-        </div>
-      </div>
-      <div class="actions">
-        <button class="sec" onclick="toggleEdit(${it.id})">✏ Изменить</button>
-        <button class="sec" onclick="delItem(${it.id})">🗑 Удалить</button>
-      </div>
-      <div class="edit-form" id="form-${it.id}"></div>
+    const y=(it.year||'').trim()||'Без года';
+    if(!groups[y])groups[y]=[];
+    groups[y].push(it);
+  });
+
+  // сортировка годов: по убыванию, «Без года» в конце
+  const years=Object.keys(groups).sort((a,b)=>{
+    if(a==='Без года')return 1;
+    if(b==='Без года')return -1;
+    return b.localeCompare(a,undefined,{numeric:true});
+  });
+
+  if(!filtered.length){
+    list.innerHTML='<div style="text-align:center;padding:40px;color:#8a8175">Ничего не найдено</div>';
+  }
+
+  let firstSection=true;
+  years.forEach(year=>{
+    const group=groups[year];
+    const gMin=group.reduce((s,it)=>s+(+it.pmin||0),0);
+    const gMax=group.reduce((s,it)=>s+(+it.pmax||0),0);
+
+    // заголовок раздела
+    const header=document.createElement('div');
+    header.className='section-header'+(firstSection?' section-first':'');
+    header.innerHTML=`
+      <span class="year">${esc(year)}</span>
+      <span class="year-info">${group.length} шт. • ${gMin.toLocaleString('ru-RU')}–${gMax.toLocaleString('ru-RU')} ₽</span>
     `;
-    list.appendChild(c);
+    list.appendChild(header);
+    firstSection=false;
+
+    // карточки года
+    group.forEach(it=>{
+      const c=document.createElement('div');c.className='card';
+      const ph=it.photo?`<img src="${it.photo}">`:`<div class="noimg">нет<br>фото</div>`;
+      c.innerHTML=`
+        <div class="card-head">
+          ${ph}
+          <div>
+            <h3>№${it.id}. ${esc(it.name)}</h3>
+            <div class="tags">
+              ${it.year?`<span class="tag">${esc(it.year)}</span>`:''}
+              ${it.denom?`<span class="tag">${esc(it.denom)}</span>`:''}
+              ${it.theme?`<span class="tag theme">${esc(it.theme)}</span>`:''}
+              ${it.rare?`<span class="tag rare">${esc(it.rare)}</span>`:''}
+              ${it.cond?`<span class="tag">${esc(it.cond)}</span>`:''}
+            </div>
+            <div class="price">${it.pmin||0}–${it.pmax||0} ₽</div>
+            ${it.comment?`<div class="comment">${esc(it.comment)}</div>`:''}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="sec" onclick="toggleEdit(${it.id})">✏ Изменить</button>
+          <button class="sec" onclick="delItem(${it.id})">🗑 Удалить</button>
+        </div>
+        <div class="edit-form" id="form-${it.id}"></div>
+      `;
+      list.appendChild(c);
+    });
   });
 
   document.getElementById('st-count').textContent=filtered.length;
@@ -264,7 +309,6 @@ function newItem(){
   setTimeout(()=>toggleEdit(nid),100);
 }
 
-/* ---- ЭКСПОРТ / ИМПОРТ ---- */
 function exportJSON(){
   const data={version:1,exportedAt:new Date().toISOString(),count:items.length,items:items};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
