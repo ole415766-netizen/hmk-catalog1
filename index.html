@@ -125,15 +125,27 @@ function load(){
   try{
     const r=localStorage.getItem(LS_KEY);
     if(r){items=JSON.parse(r);}
-    else{items=SEED.map(x=>({...x,photo:null}));}
+    else{items=SEED.map((x,i)=>({...x,id:i+1,photo:null}));}
     items.forEach(it=>{
       if(it.year){it.year=String(it.year).replace(/-е$/,'').replace(/-х$/,'');}
     });
-    renumber();
-  }catch(e){items=SEED.map(x=>({...x,photo:null}));}
+    sortAndRenumber();
+  }catch(e){items=SEED.map((x,i)=>({...x,id:i+1,photo:null}));}
 }
 
-function renumber(){items.forEach((it,i)=>{it.id=i+1;});}
+/* ⭐ АВТОСОРТИРОВКА + ПЕРЕСЧЁТ НОМЕРОВ
+   Сортирует по году (старые → новые), затем по прежнему id.
+   Номера всегда идут подряд: 1, 2, 3... */
+function sortAndRenumber(){
+  items.sort((a,b)=>{
+    const ya=(String(a.year||'').match(/\d+/)||['99999'])[0];
+    const yb=(String(b.year||'').match(/\d+/)||['99999'])[0];
+    if(ya!==yb)return ya.localeCompare(yb,undefined,{numeric:true});
+    return (a.id||0)-(b.id||0);
+  });
+  items.forEach((it,i)=>{it.id=i+1;});
+}
+
 function save(){localStorage.setItem(LS_KEY,JSON.stringify(items));}
 
 function toast(msg){
@@ -143,6 +155,8 @@ function toast(msg){
 }
 
 function render(){
+  sortAndRenumber();  // ⭐ порядок и номера пересчитываются при каждой отрисовке
+
   const q=(document.getElementById('f-search').value||'').toLowerCase();
   const ft=document.getElementById('f-theme').value;
   const list=document.getElementById('list');list.innerHTML='';
@@ -302,22 +316,27 @@ function saveItem(id){
   it.pmax=+document.getElementById('f-pmax-'+id).value||0;
   it.comment=document.getElementById('f-comment-'+id).value;
   if(currentPhoto)it.photo=currentPhoto;
-  save();render();toast('Сохранено ✅');
+  sortAndRenumber();  // ⭐ сразу пересчитываем номера
+  save();render();    // render тоже вызовет sortAndRenumber, но это безопасно
+  toast('Сохранено ✅, нумерация обновлена');
 }
 
 function delItem(id){
-  if(!confirm('Удалить №'+id+'? Нумерация остальных сдвинется.'))return;
+  if(!confirm('Удалить №'+id+'?'))return;
   items=items.filter(x=>x.id!==id);
-  renumber();
+  sortAndRenumber();
   save();render();toast('Удалено, нумерация обновлена');
 }
 
 function newItem(){
-  items.push({id:0,name:"Новый конверт",year:"",denom:"",theme:"",cond:"Чистый",rare:"Обычный",pmin:0,pmax:0,comment:"",photo:null});
-  renumber();
-  const nid=items[items.length-1].id;
+  const maxId=items.length?Math.max(...items.map(x=>x.id)):0;
+  items.push({id:maxId+1,name:"Новый конверт",year:"",denom:"",theme:"",cond:"Чистый",rare:"Обычный",pmin:0,pmax:0,comment:"",photo:null});
+  sortAndRenumber();
+  const nid=items.length;  // после сортировки «Без года» уходит в конец
   save();render();
-  setTimeout(()=>toggleEdit(nid),100);
+  // найдём id того, что только что добавили, по имени
+  const added=items.find(x=>x.name==="Новый конверт"&&!x.pmin&&!x.pmax);
+  setTimeout(()=>{ if(added) toggleEdit(added.id); },100);
 }
 
 function exportJSON(){
@@ -342,17 +361,18 @@ function importJSON(e){
       const incoming=Array.isArray(data)?data:(data.items||[]);
       if(!Array.isArray(incoming)||!incoming.length){toast('Файл пустой или неверный');return;}
       if(!confirm('Импортировать '+incoming.length+' конвертов? Текущая коллекция будет заменена.'))return;
-      items=incoming.map(it=>{
+      items=incoming.map((it,i)=>{
         let yr=String(it.year||'').trim();
         yr=yr.replace(/-е$/,'').replace(/-х$/,'');
         return{
+          id:i+1,
           name:it.name||'Без названия',year:yr,denom:it.denom||'',
           theme:it.theme||'',cond:it.cond||'Чистый',rare:it.rare||'Обычный',
           pmin:+it.pmin||0,pmax:+it.pmax||0,comment:it.comment||'',
           cat:it.cat||'',photo:it.photo||null
         };
       });
-      renumber();save();render();
+      sortAndRenumber();save();render();
       toast('📂 Импортировано: '+items.length+' конвертов');
     }catch(err){toast('Ошибка чтения файла');}
   };
