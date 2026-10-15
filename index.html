@@ -133,9 +133,6 @@ function load(){
   }catch(e){items=SEED.map((x,i)=>({...x,id:i+1,photo:null}));}
 }
 
-/* ⭐ АВТОСОРТИРОВКА + ПЕРЕСЧЁТ НОМЕРОВ
-   Сортирует по году (старые → новые), затем по прежнему id.
-   Номера всегда идут подряд: 1, 2, 3... */
 function sortAndRenumber(){
   items.sort((a,b)=>{
     const ya=(String(a.year||'').match(/\d+/)||['99999'])[0];
@@ -151,11 +148,20 @@ function save(){localStorage.setItem(LS_KEY,JSON.stringify(items));}
 function toast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('on');
-  setTimeout(()=>t.classList.remove('on'),2000);
+  setTimeout(()=>t.classList.remove('on'),2200);
+}
+
+function normName(s){
+  return String(s||'').toLowerCase()
+    .replace(/ё/g,'е')
+    .replace(/[«»"'`]/g,'')
+    .replace(/[.,;:!?()\-–—]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
 }
 
 function render(){
-  sortAndRenumber();  // ⭐ порядок и номера пересчитываются при каждой отрисовке
+  sortAndRenumber();
 
   const q=(document.getElementById('f-search').value||'').toLowerCase();
   const ft=document.getElementById('f-theme').value;
@@ -316,8 +322,8 @@ function saveItem(id){
   it.pmax=+document.getElementById('f-pmax-'+id).value||0;
   it.comment=document.getElementById('f-comment-'+id).value;
   if(currentPhoto)it.photo=currentPhoto;
-  sortAndRenumber();  // ⭐ сразу пересчитываем номера
-  save();render();    // render тоже вызовет sortAndRenumber, но это безопасно
+  sortAndRenumber();
+  save();render();
   toast('Сохранено ✅, нумерация обновлена');
 }
 
@@ -332,15 +338,13 @@ function newItem(){
   const maxId=items.length?Math.max(...items.map(x=>x.id)):0;
   items.push({id:maxId+1,name:"Новый конверт",year:"",denom:"",theme:"",cond:"Чистый",rare:"Обычный",pmin:0,pmax:0,comment:"",photo:null});
   sortAndRenumber();
-  const nid=items.length;  // после сортировки «Без года» уходит в конец
   save();render();
-  // найдём id того, что только что добавили, по имени
   const added=items.find(x=>x.name==="Новый конверт"&&!x.pmin&&!x.pmax);
   setTimeout(()=>{ if(added) toggleEdit(added.id); },100);
 }
 
 function exportJSON(){
-  const data={version:1,exportedAt:new Date().toISOString(),count:items.length,items:items};
+  const data={version:2,exportedAt:new Date().toISOString(),count:items.length,items:items};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -352,6 +356,7 @@ function exportJSON(){
   toast('💾 Экспортировано: '+items.length+' конвертов');
 }
 
+/* ⭐ УМНЫЙ ИМПОРТ: предложит объединить или заменить */
 function importJSON(e){
   const f=e.target.files[0];if(!f)return;
   const r=new FileReader();
@@ -360,20 +365,52 @@ function importJSON(e){
       const data=JSON.parse(ev.target.result);
       const incoming=Array.isArray(data)?data:(data.items||[]);
       if(!Array.isArray(incoming)||!incoming.length){toast('Файл пустой или неверный');return;}
-      if(!confirm('Импортировать '+incoming.length+' конвертов? Текущая коллекция будет заменена.'))return;
-      items=incoming.map((it,i)=>{
+
+      const merge=confirm(
+        'Как импортировать?\n\n'+
+        '▶ ОК — ОБЪЕДИНИТЬ\n'+
+        '(фото подтянутся к совпадающим, новые добавятся)\n\n'+
+        '▶ Отмена — ЗАМЕНИТЬ\n'+
+        '(вся текущая коллекция будет стёрта)'
+      );
+
+      const clean=incoming.map(it=>{
         let yr=String(it.year||'').trim();
         yr=yr.replace(/-е$/,'').replace(/-х$/,'');
         return{
-          id:i+1,
           name:it.name||'Без названия',year:yr,denom:it.denom||'',
           theme:it.theme||'',cond:it.cond||'Чистый',rare:it.rare||'Обычный',
           pmin:+it.pmin||0,pmax:+it.pmax||0,comment:it.comment||'',
           cat:it.cat||'',photo:it.photo||null
         };
       });
-      sortAndRenumber();save();render();
-      toast('📂 Импортировано: '+items.length+' конвертов');
+
+      if(merge){
+        let updated=0,added=0,photoCount=0;
+        clean.forEach(inc=>{
+          const key=normName(inc.name);
+          const ex=items.find(x=>normName(x.name)===key);
+          if(ex){
+            // подтягиваем фото, если у нас его нет
+            if(inc.photo && !ex.photo){ex.photo=inc.photo;photoCount++;}
+            // и обновляем остальные поля, если у нас пусто
+            if(!ex.year && inc.year)ex.year=inc.year;
+            if(!ex.denom && inc.denom)ex.denom=inc.denom;
+            if(!ex.theme && inc.theme)ex.theme=inc.theme;
+            if(!ex.comment && inc.comment)ex.comment=inc.comment;
+            updated++;
+          } else {
+            items.push({...inc,id:(items.length?Math.max(...items.map(x=>x.id)):0)+added+1});
+            added++;
+          }
+        });
+        sortAndRenumber();save();render();
+        toast('📂 Объединено: +'+added+' новых, '+photoCount+' фото подтянуто');
+      } else {
+        items=clean.map((it,i)=>({...it,id:i+1}));
+        sortAndRenumber();save();render();
+        toast('📂 Заменено: '+items.length+' конвертов');
+      }
     }catch(err){toast('Ошибка чтения файла');}
   };
   r.readAsText(f);
