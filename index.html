@@ -20,14 +20,12 @@
   .filters input{flex:2}.filters select{flex:1;min-width:0}
   button{cursor:pointer;border:none;background:#8b5a2b;color:#fff;font-weight:600}
   button.sec{background:#e8e2d8;color:#4a3a2a}
-
   .section-header{display:flex;justify-content:space-between;align-items:baseline;
     padding:14px 6px 8px;margin-top:6px;border-bottom:2px solid #8b5a2b;
     position:sticky;top:0;background:#f5f2ec;z-index:10}
   .section-header .year{font-size:19px;font-weight:800;color:#8b5a2b;letter-spacing:.5px}
   .section-header .year-info{font-size:12px;color:#8a8175;font-weight:600}
   .section-first{margin-top:0}
-
   .card{background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;
         box-shadow:0 1px 3px rgba(0,0,0,.06)}
   .card-head{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start}
@@ -92,8 +90,13 @@
 
 <script>
 const LS_KEY='hmk_catalog_v3';
+const DELETED_KEY='hmk_deleted_seeds_v1';
 let items=[];let currentPhoto=null;
 
+/* ⭐ КОГДА ДОБАВЛЯЕТЕ НОВЫЕ КОНВЕРТЫ В КОД —
+     просто допишите их сюда. При следующем открытии
+     приложения они автоматически появятся у всех пользователей,
+     а существующие фото и правки НЕ пострадают. */
 const SEED=[
  {name:"Авиация (самолёт над пейзажем)",year:"1961",denom:"7 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:400,comment:"Массовый тираж, без гашения."},
  {name:"ВДНХ СССР (вертолёт над выставкой)",year:"1960",denom:"4 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:100,pmax:300,comment:"Интересный сюжет."},
@@ -121,16 +124,62 @@ const SEED=[
  {name:"Ю. М. Коцюбинский (1896–1938)",year:"1965",denom:"4 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Государственный и военный деятель. Двойная надпись."}
 ];
 
+function normName(s){
+  return String(s||'').toLowerCase()
+    .replace(/ё/g,'е')
+    .replace(/[«»"'`]/g,'')
+    .replace(/[.,;:!?()\-–—]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function getDeletedSeeds(){
+  try{return JSON.parse(localStorage.getItem(DELETED_KEY)||'[]');}catch(e){return[];}
+}
+function addDeletedSeed(name){
+  const d=getDeletedSeeds();
+  const k=normName(name);
+  if(!d.includes(k)){d.push(k);localStorage.setItem(DELETED_KEY,JSON.stringify(d));}
+}
+
+/* ⭐ АВТОСЛИЯНИЕ: 
+   - если localStorage пуст — загружаем все SEED
+   - если есть данные — оставляем их, добавляем только НОВЫЕ SEED (которых нет и которые не удалены вручную) */
 function load(){
+  let stored=null;
   try{
     const r=localStorage.getItem(LS_KEY);
-    if(r){items=JSON.parse(r);}
-    else{items=SEED.map((x,i)=>({...x,id:i+1,photo:null}));}
-    items.forEach(it=>{
-      if(it.year){it.year=String(it.year).replace(/-е$/,'').replace(/-х$/,'');}
+    if(r)stored=JSON.parse(r);
+  }catch(e){}
+
+  const deleted=getDeletedSeeds();
+
+  if(!stored||!stored.length){
+    // Первый запуск — все SEED
+    items=SEED.map((x,i)=>({...x,id:i+1,photo:null}));
+  } else {
+    // Уже есть данные — берём их, а недостающие SEED добавляем
+    items=stored;
+    const existingNames=new Set(items.map(it=>normName(it.name)));
+    let added=0;
+    SEED.forEach(s=>{
+      const k=normName(s.name);
+      if(existingNames.has(k))return;          // уже есть
+      if(deleted.includes(k))return;           // удалён пользователем
+      items.push({...s,id:0,photo:null});
+      added++;
     });
-    sortAndRenumber();
-  }catch(e){items=SEED.map((x,i)=>({...x,id:i+1,photo:null}));}
+    if(added>0){
+      setTimeout(()=>toast('✨ Добавлено новых: '+added),400);
+    }
+  }
+
+  // нормализация годов и пересчёт
+  items.forEach(it=>{
+    if(it.year)it.year=String(it.year).replace(/-е$/,'').replace(/-х$/,'');
+  });
+  sortAndRenumber();
+  save();
 }
 
 function sortAndRenumber(){
@@ -149,15 +198,6 @@ function toast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('on');
   setTimeout(()=>t.classList.remove('on'),2200);
-}
-
-function normName(s){
-  return String(s||'').toLowerCase()
-    .replace(/ё/g,'е')
-    .replace(/[«»"'`]/g,'')
-    .replace(/[.,;:!?()\-–—]/g,' ')
-    .replace(/\s+/g,' ')
-    .trim();
 }
 
 function render(){
@@ -322,29 +362,31 @@ function saveItem(id){
   it.pmax=+document.getElementById('f-pmax-'+id).value||0;
   it.comment=document.getElementById('f-comment-'+id).value;
   if(currentPhoto)it.photo=currentPhoto;
-  sortAndRenumber();
-  save();render();
-  toast('Сохранено ✅, нумерация обновлена');
+  sortAndRenumber();save();render();
+  toast('Сохранено ✅');
 }
 
 function delItem(id){
+  const it=items.find(x=>x.id===id);
+  if(!it)return;
   if(!confirm('Удалить №'+id+'?'))return;
+  // если это SEED-конверт — запоминаем, что его удалили, чтобы не вернулся
+  const k=normName(it.name);
+  if(SEED.some(s=>normName(s.name)===k))addDeletedSeed(it.name);
   items=items.filter(x=>x.id!==id);
-  sortAndRenumber();
-  save();render();toast('Удалено, нумерация обновлена');
+  sortAndRenumber();save();render();
+  toast('Удалено, нумерация обновлена');
 }
 
 function newItem(){
-  const maxId=items.length?Math.max(...items.map(x=>x.id)):0;
-  items.push({id:maxId+1,name:"Новый конверт",year:"",denom:"",theme:"",cond:"Чистый",rare:"Обычный",pmin:0,pmax:0,comment:"",photo:null});
-  sortAndRenumber();
-  save();render();
+  items.push({id:0,name:"Новый конверт",year:"",denom:"",theme:"",cond:"Чистый",rare:"Обычный",pmin:0,pmax:0,comment:"",photo:null});
+  sortAndRenumber();save();render();
   const added=items.find(x=>x.name==="Новый конверт"&&!x.pmin&&!x.pmax);
-  setTimeout(()=>{ if(added) toggleEdit(added.id); },100);
+  setTimeout(()=>{if(added)toggleEdit(added.id);},100);
 }
 
 function exportJSON(){
-  const data={version:2,exportedAt:new Date().toISOString(),count:items.length,items:items};
+  const data={version:3,exportedAt:new Date().toISOString(),count:items.length,items:items};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -356,7 +398,6 @@ function exportJSON(){
   toast('💾 Экспортировано: '+items.length+' конвертов');
 }
 
-/* ⭐ УМНЫЙ ИМПОРТ: предложит объединить или заменить */
 function importJSON(e){
   const f=e.target.files[0];if(!f)return;
   const r=new FileReader();
@@ -375,8 +416,7 @@ function importJSON(e){
       );
 
       const clean=incoming.map(it=>{
-        let yr=String(it.year||'').trim();
-        yr=yr.replace(/-е$/,'').replace(/-х$/,'');
+        let yr=String(it.year||'').trim().replace(/-е$/,'').replace(/-х$/,'');
         return{
           name:it.name||'Без названия',year:yr,denom:it.denom||'',
           theme:it.theme||'',cond:it.cond||'Чистый',rare:it.rare||'Обычный',
@@ -388,16 +428,14 @@ function importJSON(e){
       if(merge){
         let updated=0,added=0,photoCount=0;
         clean.forEach(inc=>{
-          const key=normName(inc.name);
-          const ex=items.find(x=>normName(x.name)===key);
+          const k=normName(inc.name);
+          const ex=items.find(x=>normName(x.name)===k);
           if(ex){
-            // подтягиваем фото, если у нас его нет
-            if(inc.photo && !ex.photo){ex.photo=inc.photo;photoCount++;}
-            // и обновляем остальные поля, если у нас пусто
-            if(!ex.year && inc.year)ex.year=inc.year;
-            if(!ex.denom && inc.denom)ex.denom=inc.denom;
-            if(!ex.theme && inc.theme)ex.theme=inc.theme;
-            if(!ex.comment && inc.comment)ex.comment=inc.comment;
+            if(inc.photo&&!ex.photo){ex.photo=inc.photo;photoCount++;}
+            if(!ex.year&&inc.year)ex.year=inc.year;
+            if(!ex.denom&&inc.denom)ex.denom=inc.denom;
+            if(!ex.theme&&inc.theme)ex.theme=inc.theme;
+            if(!ex.comment&&inc.comment)ex.comment=inc.comment;
             updated++;
           } else {
             items.push({...inc,id:(items.length?Math.max(...items.map(x=>x.id)):0)+added+1});
@@ -405,7 +443,7 @@ function importJSON(e){
           }
         });
         sortAndRenumber();save();render();
-        toast('📂 Объединено: +'+added+' новых, '+photoCount+' фото подтянуто');
+        toast('📂 Объединено: +'+added+' новых, '+photoCount+' фото');
       } else {
         items=clean.map((it,i)=>({...it,id:i+1}));
         sortAndRenumber();save();render();
