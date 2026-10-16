@@ -93,10 +93,8 @@ const LS_KEY='hmk_catalog_v3';
 const DELETED_KEY='hmk_deleted_seeds_v1';
 let items=[];let currentPhoto=null;
 
-/* ⭐ КОГДА ДОБАВЛЯЕТЕ НОВЫЕ КОНВЕРТЫ В КОД —
-     просто допишите их сюда. При следующем открытии
-     приложения они автоматически появятся у всех пользователей,
-     а существующие фото и правки НЕ пострадают. */
+/* ⭐ SEED — все 32 конверта.
+   При добавлении новых просто допишите сюда — они появятся у всех пользователей. */
 const SEED=[
  {name:"Авиация (самолёт над пейзажем)",year:"1961",denom:"7 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный (ранний)",pmin:150,pmax:400,comment:"Массовый тираж, без гашения."},
  {name:"ВДНХ СССР (вертолёт над выставкой)",year:"1960",denom:"4 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:100,pmax:300,comment:"Интересный сюжет."},
@@ -121,7 +119,15 @@ const SEED=[
  {name:"Эдуард Багрицкий (1895–1934)",year:"1967",denom:"4 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Портрет поэта."},
  {name:"800 лет «Слову о полку Игореве»",year:"1966",denom:"4 коп.",theme:"Литература",cond:"Чистый",rare:"Обычный",pmin:200,pmax:450,comment:"Юбилейный выпуск. Памятник древнерусской литературы."},
  {name:"Ф. И. Панферов (1896–1960)",year:"1965",denom:"4 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный",pmin:150,pmax:300,comment:"Портрет советского писателя."},
- {name:"Ю. М. Коцюбинский (1896–1938)",year:"1965",denom:"4 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Государственный и военный деятель. Двойная надпись."}
+ {name:"Ю. М. Коцюбинский (1896–1938)",year:"1965",denom:"4 коп.",theme:"Портреты",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Государственный и военный деятель. Двойная надпись."},
+ {name:"АВИА. Самолёт над аэропортом",year:"1961",denom:"6+1 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Авиапочта. Нетиповой номинал марки 6 коп. Точная дата выпуска — 17 апреля 1961 г."},
+ {name:"АВИА. Вертолёт Ми-4",year:"1961",denom:"6+1 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Авиапочта. Нетиповой номинал марки 6 коп. Вертолёт Ми-4 — многоцелевая машина, популярная в СССР."},
+ {name:"АВИА. Вертолёт Ми-8",year:"1964",denom:"6+1 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Авиапочта. Нетиповой номинал марки 6 коп. Вертолёт Ми-8 — многоцелевая машина, популярная в СССР."},
+ {name:"АВИА. Самолёт Ту-114",year:"1963",denom:"6+1 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Авиапочта. Нетиповой номинал марки 6 коп. Ту-114 — дальнемагистральный турбовинтовой лайнер."},
+ {name:"АВИА. Самолёт Ил-62",year:"1963",denom:"6+1 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Авиапочта. Нетиповой номинал марки 6 коп. Ил-62 — флагман советской дальней авиации."},
+ {name:"АВИА. Вертолёт В-2",year:"1963",denom:"6+1 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Авиапочта. Нетиповой номинал марки 6 коп. В-2 — первый советский серийный вертолёт."},
+ {name:"Скалярия",year:"1963",denom:"4+1 коп.",theme:"Фауна",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Аквариумная рыбка скалярия. Точная дата выпуска — 6 июля 1963 г."},
+ {name:"АВИА. Самолёт над зимним пейзажем",year:"1961",denom:"6+1 коп.",theme:"Авиация",cond:"Чистый",rare:"Обычный",pmin:150,pmax:350,comment:"Авиапочта. Тот же художник и дата, что у №25, но другой сюжет — самолёт над зимним пейзажем с рекой."}
 ];
 
 function normName(s){
@@ -142,9 +148,7 @@ function addDeletedSeed(name){
   if(!d.includes(k)){d.push(k);localStorage.setItem(DELETED_KEY,JSON.stringify(d));}
 }
 
-/* ⭐ АВТОСЛИЯНИЕ: 
-   - если localStorage пуст — загружаем все SEED
-   - если есть данные — оставляем их, добавляем только НОВЫЕ SEED (которых нет и которые не удалены вручную) */
+/* ⭐ АВТОСЛИЯНИЕ: если localStorage пуст — все SEED. Если есть — добавляем только новые SEED (не удалённые вручную). */
 function load(){
   let stored=null;
   try{
@@ -155,17 +159,15 @@ function load(){
   const deleted=getDeletedSeeds();
 
   if(!stored||!stored.length){
-    // Первый запуск — все SEED
     items=SEED.map((x,i)=>({...x,id:i+1,photo:null}));
   } else {
-    // Уже есть данные — берём их, а недостающие SEED добавляем
     items=stored;
     const existingNames=new Set(items.map(it=>normName(it.name)));
     let added=0;
     SEED.forEach(s=>{
       const k=normName(s.name);
-      if(existingNames.has(k))return;          // уже есть
-      if(deleted.includes(k))return;           // удалён пользователем
+      if(existingNames.has(k))return;
+      if(deleted.includes(k))return;
       items.push({...s,id:0,photo:null});
       added++;
     });
@@ -174,7 +176,6 @@ function load(){
     }
   }
 
-  // нормализация годов и пересчёт
   items.forEach(it=>{
     if(it.year)it.year=String(it.year).replace(/-е$/,'').replace(/-х$/,'');
   });
@@ -202,7 +203,6 @@ function toast(msg){
 
 function render(){
   sortAndRenumber();
-
   const q=(document.getElementById('f-search').value||'').toLowerCase();
   const ft=document.getElementById('f-theme').value;
   const list=document.getElementById('list');list.innerHTML='';
@@ -370,7 +370,6 @@ function delItem(id){
   const it=items.find(x=>x.id===id);
   if(!it)return;
   if(!confirm('Удалить №'+id+'?'))return;
-  // если это SEED-конверт — запоминаем, что его удалили, чтобы не вернулся
   const k=normName(it.name);
   if(SEED.some(s=>normName(s.name)===k))addDeletedSeed(it.name);
   items=items.filter(x=>x.id!==id);
